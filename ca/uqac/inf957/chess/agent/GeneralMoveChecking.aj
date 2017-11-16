@@ -29,6 +29,8 @@ public aspect GeneralMoveChecking {
         // if ok return proceed
         // if not return false
 
+        String color = player.Colour == Player.BLACK ? "Black" : "White";
+        System.out.println("Player " + color + " is trying a move");
         if (mv.xI < 0 || mv.xI > 7 || mv.yI < 0 || mv.yI > 7 ||
                 mv.xF < 0 || mv.xF > 7 || mv.yF < 0 || mv.yF > 7)
             return false;
@@ -42,14 +44,13 @@ public aspect GeneralMoveChecking {
 
         if (pi == null || pi.getPlayer() != player.Colour)
             return false;
+
         if (pf != null && (pf.getPlayer() == player.Colour ||
                 pf.toString().equals("rb") || pf.toString().equals("R")))
             return false;
 
-        if (!pi.isMoveLegal(mv))
-            return false;
+        return pi.isMoveLegal(mv) && proceed(mv, player);
 
-        return proceed(mv, player);
     }
 
     private int chebychev(Move mv){
@@ -99,10 +100,12 @@ public aspect GeneralMoveChecking {
             case "p":
             case "P":
                 System.out.println("It's a pawn, or a bishop. Treating it as pawn..");
-                if ((chebychev(mv) == 2 && (mv.yI != 1 || mv.yI != 6)) || chebychev(mv) > 2)
+                if (((chebychev(mv) == 2 && (mv.yI != 1 && mv.yI != 6))) || chebychev(mv) > 2)
                     return false;
+
                 if ((piece.getPlayer() == Player.BLACK && mv.yI < mv.yF) ||
                     (piece.getPlayer() == Player.WHITE && mv.yI > mv.yF))
+                    return false;
                 break;
             case "r":
             case "R":
@@ -113,8 +116,11 @@ public aspect GeneralMoveChecking {
             case "c":
             case "C":
                 System.out.println("It'a Knight");
-                //TODO handle Knight mvt
-                break;
+                if ((Math.abs(mv.yF - mv.yI) == 2 && Math.abs(mv.xF - mv.xI) == 1)
+                        ||(Math.abs(mv.xF - mv.xI) == 2 && Math.abs(mv.yF - mv.yI) == 1))
+                    return true;
+                else
+                    return false;
             case "d":
             case "D":
                 System.out.println("It'a Queen");
@@ -136,6 +142,6 @@ public aspect GeneralMoveChecking {
                 System.out.println("Unrecognized piece " + s +" can't apply any specific behavior");
                 break;
         }
-        return proceed(piece, mv);
+        return true;
     }
 }
