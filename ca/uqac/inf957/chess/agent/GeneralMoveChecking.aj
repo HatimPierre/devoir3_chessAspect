@@ -5,9 +5,20 @@ import ca.uqac.inf957.chess.Spot;
 import ca.uqac.inf957.chess.piece.Piece;
 
 public aspect GeneralMoveChecking {
+    private static Spot[][] ss = null;
+    private static boolean init = false;
+
+    pointcut move_legality(Piece piece, Move mv) : (execution(* ca.uqac.inf957.chess.piece.Piece+.isMoveLegal(..)) && target(piece) && args(mv));
     pointcut move_exec(Move mv, Player player) : (execution(* ca.uqac.inf957.chess.agent.StupidAI.move(..))
              || execution(* ca.uqac.inf957.chess.agent.HumanPlayer.move(..)))
              && args(mv) && target(player);
+
+    before(Move mv, Player player) : move_exec(mv, player){
+        if (!init){
+            ss = player.getPlayGround().getGrid();
+            init = true;
+        }
+    }
 
     boolean around (Move mv, Player player) : move_exec(mv, player){
         // check if move is on board
@@ -35,7 +46,96 @@ public aspect GeneralMoveChecking {
                 pf.toString().equals("rb") || pf.toString().equals("R")))
             return false;
 
-        pi.isMoveLegal(mv);
+        if (!pi.isMoveLegal(mv))
+            return false;
+
         return proceed(mv, player);
+    }
+
+    private int chebychev(Move mv){
+        return Math.max(Math.abs(mv.xF - mv.xI), Math.abs(mv.yI - mv.yF));
+    }
+
+    private boolean slide(Move mv){
+        int dir[] = {0,0}; // x y
+        System.out.println("Looking at slinding move : " + mv.toString() +
+        "\nWith infos xI : " + mv.xI + " yI : " + mv.yI +
+        " xF : " + mv.xF + " yF : " + mv.yF +
+        "\nWith chebychev : " + chebychev(mv));
+        if (mv.xF - mv.xI > 0)
+            dir[0] = 1;
+        else if (mv.xF - mv.xI < 0)
+            dir[0] = -1;
+
+        if (mv.yF - mv.yI > 0)
+            dir[1] = 1;
+        else if (mv.yF - mv.yI < 0)
+            dir[1] = -1;
+
+        System.out.println("Found moving in the direction x : " + dir[0] + " y : " + dir[1]);
+
+        int x = mv.xI;
+        int y = mv.yI;
+
+        for (int i = 0; i < chebychev(mv); i++){
+            x += dir[0];
+            y += dir[1];
+            System.out.println("Currently examined square is x : " + x + " y : " + y +
+            "\npiece here is : " + ss[x][y].getPiece());
+            if (ss[x][y].getPiece() != null)
+                return false;
+        }
+        return true;
+    }
+
+    boolean around (Piece piece, Move mv) : move_legality(piece, mv){
+        System.out.println("Is this legal? " + mv.toString());
+        String s = piece.toString();
+
+        if (chebychev(mv) == 0)
+            return false;
+
+        switch (s) {
+            case "p":
+            case "P":
+                System.out.println("It's a pawn, or a bishop. Treating it as pawn..");
+                if ((chebychev(mv) == 2 && (mv.yI != 1 || mv.yI != 6)) || chebychev(mv) > 2)
+                    return false;
+                if ((piece.getPlayer() == Player.BLACK && mv.yI < mv.yF) ||
+                    (piece.getPlayer() == Player.WHITE && mv.yI > mv.yF))
+                break;
+            case "r":
+            case "R":
+                System.out.println("It'a King");
+                if (chebychev(mv) > 1)
+                    return false;
+                break;
+            case "c":
+            case "C":
+                System.out.println("It'a Knight");
+                //TODO handle Knight mvt
+                break;
+            case "d":
+            case "D":
+                System.out.println("It'a Queen");
+                if ((mv.xI != mv.xF && mv.yI != mv.yF) &&
+                    (Math.abs(mv.xI - mv.xF) != Math.abs(mv.yI - mv.yF)))
+                    return false;
+                if (!slide(mv))
+                    return false;
+                break;
+            case "t":
+            case "T":
+                System.out.println("It'a Rook");
+                if (mv.xI != mv.xF && mv.yI != mv.yF)
+                    return false;
+                if (!slide(mv))
+                    return false;
+                break;
+            default:
+                System.out.println("Unrecognized piece " + s +" can't apply any specific behavior");
+                break;
+        }
+        return proceed(piece, mv);
     }
 }
